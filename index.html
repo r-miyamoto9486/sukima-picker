@@ -5,32 +5,15 @@
   <title>スキマ時間ピッカー</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
-  <!-- Android Chrome / PWA設定 -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="theme-color" content="#1a73e8">
-
-  <!-- iPhone Safari設定 -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="スキマ時間">
 
-  <!-- アイコン -->
   <link rel="icon" type="image/png" sizes="192x192" href="icon.png">
   <link rel="apple-touch-icon" sizes="192x192" href="icon.png">
   <link rel="shortcut icon" href="icon.png">
-
-  <!-- Android用 Manifest -->
-  <link rel="manifest" href="data:application/manifest+json,{
-    %22name%22:%22スキマ時間ピッカー%22,
-    %22short_name%22:%22スキマ時間%22,
-    %22start_url%22:%22.%22,
-    %22display%22:%22standalone%22,
-    %22background_color%22:%22%23ffffff%22,
-    %22theme_color%22:%22%231a73e8%22,
-    %22icons%22:[
-      {%22src%22:%22icon.png%22,%22sizes%22:%22512x512%22,%22type%22:%22image/png%22,%22purpose%22:%22any%20maskable%22}
-    ]
-  }">
 
   <style>
     :root {
@@ -59,6 +42,29 @@
       margin-bottom: 8px;
     }
     h1 { font-size: 1.05rem; margin: 0; font-weight: 700; }
+
+    /* 設定エリア */
+    .setup-card {
+      background: #ffffff; border: 2px dashed #1a73e8; border-radius: 10px;
+      padding: 14px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .setup-title { font-size: 0.9rem; font-weight: bold; color: var(--primary); margin-bottom: 6px; }
+    .setup-desc { font-size: 0.75rem; color: var(--text-sub); margin-bottom: 8px; line-height: 1.4; }
+    .setup-input {
+      width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 6px;
+      font-size: 0.78rem; margin-bottom: 8px; outline: none;
+    }
+    .setup-btn {
+      width: 100%; background: var(--primary); color: #fff; border: none;
+      border-radius: 6px; padding: 9px; font-size: 0.85rem; font-weight: bold; cursor: pointer;
+    }
+
+    /* 診断ログ枠 */
+    .debug-box {
+      background: #fff3cd; border: 1.5px solid #ffeeba; border-radius: 8px;
+      padding: 10px; margin-bottom: 10px; font-size: 0.72rem; color: #856404;
+      line-height: 1.4; font-family: monospace; word-break: break-all;
+    }
 
     .week-nav {
       display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
@@ -103,13 +109,6 @@
     }
 
     #content { margin-top: 10px; padding-bottom: 110px; }
-
-    /* 診断用デバッグログ表示エリア */
-    .debug-box {
-      background: #fff3cd; border: 1.5px solid #ffeeba; border-radius: 8px;
-      padding: 12px; margin-bottom: 12px; font-size: 0.75rem; color: #856404;
-      line-height: 1.5; font-family: monospace; word-break: break-all;
-    }
 
     .day-card {
       background: var(--card-bg); border-radius: 10px; padding: 10px;
@@ -240,6 +239,7 @@
   <header>
     <div class="top-bar">
       <h1>⏱️ スキマ時間</h1>
+      <button onclick="toggleSetup(true)" style="background:none; border:none; font-size:0.8rem; color:#1a73e8; cursor:pointer; font-weight:bold;">⚙️ 設定</button>
     </div>
 
     <div class="week-nav" id="weekNav"></div>
@@ -258,8 +258,16 @@
   </header>
 
   <div id="content">
-    <div id="debugBox" class="debug-box">初期化中...</div>
-    <div class="loading">Googleカレンダーから空き枠を取得中...</div>
+    <!-- URL未設定時の入力フォーム -->
+    <div id="setupArea" class="setup-card" style="display:none;">
+      <div class="setup-title">🔗 GAS APIの接続設定</div>
+      <div class="setup-desc">先ほどテストしたGASのウェブアプリURLを貼り付けて「保存して接続」を押してください。</div>
+      <input type="text" id="gasUrlInput" class="setup-input" placeholder="https://script.google.com/macros/s/.../exec">
+      <button class="setup-btn" onclick="saveGasUrl()">保存して接続する</button>
+    </div>
+
+    <div id="debugBox" class="debug-box">初期化を開始します...</div>
+    <div class="loading" id="loadingText">カレンダーから空き枠を取得中...</div>
   </div>
 
   <div id="actionBar" class="action-bar">
@@ -272,10 +280,9 @@
   <div id="toast" class="toast">コピーしました！</div>
 
   <script>
-    // ★ここにGASのURLを貼り付け（前後に空白がないように注意）
-    const GAS_API_URL = https://script.google.com/macros/s/AKfycbxEX0_VhSekeiip7CCfrA-RW26oV1heU14eMCOmqNKpoLNxjaoMACZZ5xZxXVNrXc-s/exec;
-
+    const STORAGE_URL_KEY = 'sukima_gas_url';
     const CACHE_KEY = 'sukima_calendar_cache';
+
     let currentDuration = 60;
     let currentView = 'list';
     let currentWeekOffset = 0;
@@ -290,63 +297,89 @@
       }
     }
 
+    function toggleSetup(show) {
+      const area = document.getElementById('setupArea');
+      if (area) {
+        area.style.display = show ? 'block' : 'none';
+        if (show) {
+          const currentUrl = localStorage.getItem(STORAGE_URL_KEY) || '';
+          document.getElementById('gasUrlInput').value = currentUrl;
+        }
+      }
+    }
+
+    function saveGasUrl() {
+      const input = document.getElementById('gasUrlInput');
+      const val = input.value.trim();
+      if (!val || !val.startsWith('http')) {
+        alert('正しいURLを入力してください');
+        return;
+      }
+      localStorage.setItem(STORAGE_URL_KEY, val);
+      toggleSetup(false);
+      addLog('URL保存完了。通信を再開します');
+      fetchCalendarDataJSONP(val);
+    }
+
     // ★GASからのデータ受取口
     window.callback = function(data) {
-      addLog('✅ データ受信成功！ 件数: ' + (Array.isArray(data) ? data.length + '件' : '形式不正'));
+      addLog('✅ 受信成功！データ件数: ' + (Array.isArray(data) ? data.length + '件' : '形式不正'));
       if (Array.isArray(data)) {
         rawEvents = data;
         try {
           localStorage.setItem(CACHE_KEY, JSON.stringify(data));
         } catch (e) {}
       }
-      // ログ枠を非表示にして即時描画
-      const box = document.getElementById('debugBox');
-      if (box) box.style.display = 'none';
+      const debugBox = document.getElementById('debugBox');
+      if (debugBox) debugBox.style.display = 'none';
       renderCurrentView();
     };
 
     window.addEventListener('DOMContentLoaded', () => {
-      addLog('DOM読込完了');
+      addLog('画面の読み込み完了');
       renderWeekNav();
 
-      if (!GAS_API_URL || GAS_API_URL.includes('ここにGAS')) {
-        addLog('❌ エラー: GAS_API_URL が設定されていません！');
-        return;
-      }
-
-      // キャッシュ読込
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
             rawEvents = parsed;
-            addLog('📦 キャッシュから ' + rawEvents.length + '件を復元描画');
+            addLog('📦 キャッシュから ' + rawEvents.length + '件を描画');
             renderCurrentView();
           }
         } catch (e) {}
       }
 
-      fetchCalendarDataJSONP();
+      const savedUrl = localStorage.getItem(STORAGE_URL_KEY);
+      if (!savedUrl) {
+        addLog('⚠️ APIのURLが未設定です。上の入力枠にURLを貼り付けてください。');
+        toggleSetup(true);
+        const lt = document.getElementById('loadingText');
+        if (lt) lt.style.display = 'none';
+      } else {
+        fetchCalendarDataJSONP(savedUrl);
+      }
     });
 
-    function fetchCalendarDataJSONP() {
-      addLog('📡 通信開始: ' + GAS_API_URL.substring(0, 45) + '...');
+    function fetchCalendarDataJSONP(targetUrl) {
+      addLog('📡 通信中: ' + targetUrl.substring(0, 40) + '...');
+      const lt = document.getElementById('loadingText');
+      if (lt) lt.style.display = 'block';
 
       const oldScript = document.getElementById('gas-jsonp-script');
       if (oldScript) oldScript.remove();
 
-      const delim = GAS_API_URL.includes('?') ? '&' : '?';
-      const scriptUrl = `${GAS_API_URL}${delim}_=${Date.now()}`;
+      const delim = targetUrl.includes('?') ? '&' : '?';
+      const scriptUrl = targetUrl + delim + '_=' + Date.now();
 
       const script = document.createElement('script');
       script.id = 'gas-jsonp-script';
       script.src = scriptUrl;
       script.onerror = function() {
-        addLog('❌ 通信エラー発生: スクリプトタグの読み込みに失敗しました。');
+        addLog('❌ 通信エラー: スクリプトの読み込みに失敗しました。');
       };
       document.body.appendChild(script);
-      addLog('⏳ スクリプトタグ挿入完了。GASの応答待機中...');
     }
 
     function renderWeekNav() {
@@ -362,15 +395,11 @@
         const sun = new Date(baseSunday.getTime() + w * 7 * 24 * 60 * 60 * 1000);
         const sat = new Date(sun.getTime() + 6 * 24 * 60 * 60 * 1000);
         
-        const sunLabel = `${sun.getMonth() + 1}/${sun.getDate()}`;
-        const satLabel = `${sat.getMonth() + 1}/${sat.getDate()}`;
+        const sunLabel = (sun.getMonth() + 1) + '/' + sun.getDate();
+        const satLabel = (sat.getMonth() + 1) + '/' + sat.getDate();
         const activeClass = (w === currentWeekOffset) ? 'active' : '';
 
-        html += `
-          <button class="week-tab ${activeClass}" onclick="selectWeek(${w})">
-            ${labels[w]} (${sunLabel}〜${satLabel})
-          </button>
-        `;
+        html += '<button class="week-tab ' + activeClass + '" onclick="selectWeek(' + w + ')">' + labels[w] + ' (' + sunLabel + '〜' + satLabel + ')</button>';
       }
       nav.innerHTML = html;
     }
@@ -411,7 +440,7 @@
     function getWeekDaysMeta() {
       const metas = [];
       const now = new Date();
-      const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const todayIso = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
       
       const currentDayOfWeek = now.getDay();
       const baseSunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDayOfWeek);
@@ -423,20 +452,19 @@
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, '0');
         const day = String(d.getDate()).padStart(2, '0');
-        const iso = `${y}-${m}-${day}`;
+        const iso = y + '-' + m + '-' + day;
         metas.push({
-          dateLabel: `${d.getMonth() + 1}/${d.getDate()}(${weekDays[d.getDay()]})`,
+          dateLabel: (d.getMonth() + 1) + '/' + d.getDate() + '(' + weekDays[d.getDay()] + ')',
           dayOfWeek: d.getDay(),
           isoDate: iso,
           isToday: (iso === todayIso),
-          start7Ms: new Date(`${iso}T07:00:00`).getTime(),
-          end24Ms: new Date(`${iso}T07:00:00`).getTime() + 17 * 60 * 60 * 1000
+          start7Ms: new Date(iso + 'T07:00:00').getTime(),
+          end24Ms: new Date(iso + 'T07:00:00').getTime() + 17 * 60 * 60 * 1000
         });
       }
       return metas;
     }
 
-    /* 1. リスト表示 */
     function renderListView() {
       const container = document.getElementById('content');
       const days = getWeekDaysMeta();
@@ -458,39 +486,23 @@
           const isBusy = rawEvents.some(ev => slotStart < ev.e && slotEnd > ev.s);
 
           if (!isBusy) {
-            const timeText = `${formatTimeFromMs(slotStart)}〜${formatTimeFromMs(slotEnd)}`;
-            const fullText = `${day.dateLabel} ${timeText}`;
+            const timeText = formatTimeFromMs(slotStart) + '〜' + formatTimeFromMs(slotEnd);
+            const fullText = day.dateLabel + ' ' + timeText;
             const isSelected = selectedSlots.has(fullText);
 
-            buttons += `
-              <button 
-                class="slot-btn ${isSelected ? 'selected' : ''}" 
-                onclick="toggleSlot(this, '${fullText}')"
-              >
-                ${timeText}
-              </button>
-            `;
+            buttons += '<button class="slot-btn ' + (isSelected ? 'selected' : '') + '" onclick="toggleSlot(this, \'' + fullText + '\')">' + timeText + '</button>';
           }
           pointer += 30 * 60 * 1000;
         }
 
         if (buttons) {
-          html += `
-            <div class="day-card ${day.isToday ? 'today-card' : ''}">
-              <div class="day-title">
-                ${day.dateLabel}
-                ${day.isToday ? '<span class="today-pill">今日</span>' : ''}
-              </div>
-              <div class="slot-grid">${buttons}</div>
-            </div>
-          `;
+          html += '<div class="day-card ' + (day.isToday ? 'today-card' : '') + '"><div class="day-title">' + day.dateLabel + (day.isToday ? '<span class="today-pill">今日</span>' : '') + '</div><div class="slot-grid">' + buttons + '</div></div>';
         }
       });
 
-      container.innerHTML = html || `<div class="loading">この週（${days[0].dateLabel}〜）には条件に合う空き枠がありません</div>`;
+      container.innerHTML = html || '<div class="loading">この週（' + days[0].dateLabel + '〜）には空き枠がありません</div>';
     }
 
-    /* 2. 週間カレンダー表示 */
     function renderCalendarView() {
       const container = document.getElementById('content');
       const days = getWeekDaysMeta();
@@ -500,56 +512,31 @@
       days.forEach(d => {
         const colClass = d.dayOfWeek === 0 ? 'sunday' : (d.dayOfWeek === 6 ? 'saturday' : '');
         const todayClass = d.isToday ? 'is-today' : '';
-        tableHtml += `
-          <th class="${colClass} ${todayClass}">
-            ${d.dateLabel}
-            ${d.isToday ? '<span class="today-tag">今日</span>' : ''}
-          </th>
-        `;
+        tableHtml += '<th class="' + colClass + ' ' + todayClass + '">' + d.dateLabel + (d.isToday ? '<span class="today-tag">今日</span>' : '') + '</th>';
       });
       tableHtml += '</tr></thead><tbody>';
 
       for (let h = 7; h < 24; h++) {
         for (let m = 0; m < 60; m += 30) {
-          const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
-          tableHtml += `<tr><td class="time-col">${m === 0 ? timeStr : ''}</td>`;
+          const timeStr = String(h).padStart(2, '0') + ':' + String(m).padStart(2, '0');
+          tableHtml += '<tr><td class="time-col">' + (m === 0 ? timeStr : '') + '</td>';
 
           days.forEach(day => {
-            const cellStart = new Date(`${day.isoDate}T${timeStr}:00`).getTime();
+            const cellStart = new Date(day.isoDate + 'T' + timeStr + ':00').getTime();
             const cellEnd = cellStart + durMs;
             const fullEndTime = formatTimeFromMs(cellEnd);
-            const fullText = `${day.dateLabel} ${timeStr}〜${fullEndTime}`;
+            const fullText = day.dateLabel + ' ' + timeStr + '〜' + fullEndTime;
             const isSelected = selectedSlots.has(fullText);
             const todayColClass = day.isToday ? 'is-today' : '';
 
             const isBusy = rawEvents.some(ev => cellStart < ev.e && cellEnd > ev.s);
 
             if (isBusy) {
-              tableHtml += `
-                <td class="cal-cell busy ${todayColClass}" title="予定あり">
-                  <span class="busy-badge">予定</span>
-                </td>
-              `;
+              tableHtml += '<td class="cal-cell busy ' + todayColClass + '" title="予定あり"><span class="busy-badge">予定</span></td>';
             } else if (isSelected) {
-              tableHtml += `
-                <td 
-                  class="cal-cell selected ${todayColClass}" 
-                  onclick="toggleSlot(this, '${fullText}')"
-                  title="${fullText}"
-                >
-                  <span class="selected-badge">✓</span>
-                </td>
-              `;
+              tableHtml += '<td class="cal-cell selected ' + todayColClass + '" onclick="toggleSlot(this, \'' + fullText + '\')" title="' + fullText + '"><span class="selected-badge">✓</span></td>';
             } else {
-              tableHtml += `
-                <td 
-                  class="cal-cell available ${todayColClass}" 
-                  onclick="toggleSlot(this, '${fullText}')"
-                  title="${fullText}"
-                >
-                  <span class="status-badge">空き</span>
-                </td>
-              `;
+              tableHtml += '<td class="cal-cell available ' + todayColClass + '" onclick="toggleSlot(this, \'' + fullText + '\')" title="' + fullText + '"><span class="status-badge">空き</span></td>';
             }
           });
 
@@ -578,7 +565,7 @@
 
       if (count > 0) {
         bar.classList.add('visible');
-        copyBtn.textContent = `📋 ${count}件の候補をまとめてコピー`;
+        copyBtn.textContent = '📋 ' + count + '件の候補をまとめてコピー';
       } else {
         bar.classList.remove('visible');
       }
@@ -586,12 +573,10 @@
 
     function copyAllSelected() {
       if (selectedSlots.size === 0) return;
-
       const items = Array.from(selectedSlots);
-      const text = items.map(item => `・${item}`).join('\n');
-
+      const text = items.map(item => '・' + item).join('\n');
       navigator.clipboard.writeText(text).then(() => {
-        showToast(`${items.length}件の候補をコピーしました！`);
+        showToast(items.length + '件の候補をコピーしました！');
       });
     }
 
@@ -604,7 +589,7 @@
     function formatTimeFromMs(ms) {
       const d = new Date(ms);
       if (d.getHours() === 0 && d.getMinutes() === 0) return '24:00';
-      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+      return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     }
 
     function showToast(msg) {
