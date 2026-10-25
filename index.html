@@ -14,7 +14,7 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="スキマ時間">
 
-  <!-- アイコン（同じフォルダ内の icon.png を参照） -->
+  <!-- アイコン -->
   <link rel="icon" type="image/png" sizes="192x192" href="icon.png">
   <link rel="apple-touch-icon" sizes="192x192" href="icon.png">
   <link rel="shortcut icon" href="icon.png">
@@ -225,7 +225,7 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-    .loading { text-align: center; color: var(--text-sub); margin-top: 40px; font-size: 0.85rem; }
+    .loading { text-align: center; color: var(--text-sub); margin-top: 40px; font-size: 0.85rem; padding: 0 20px; }
   </style>
 </head>
 <body>
@@ -262,9 +262,10 @@
   </div>
 
   <div id="toast" class="toast">コピーしました！</div>
-<script>
-    // ★ご自身のGASデプロイURLをそのまま入れてください
-    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbx.../exec';
+
+  <script>
+    // ★ここにGASのデプロイURLをそのまま貼り付けてください
+    const GAS_API_URL =https://script.google.com/macros/s/AKfycbxEX0_VhSekeiip7CCfrA-RW26oV1heU14eMCOmqNKpoLNxjaoMACZZ5xZxXVNrXc-s/exec;
 
     const CACHE_KEY = 'sukima_calendar_cache';
     let currentDuration = 60;
@@ -276,42 +277,60 @@
     window.addEventListener('DOMContentLoaded', () => {
       renderWeekNav();
 
-      // 1. キャッシュがあれば即座に0秒描画（爆速化のキモ）
+      // キャッシュがあれば即時0秒描画
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
         try {
           rawEvents = JSON.parse(cached);
-          renderCurrentView();
+          if (Array.isArray(rawEvents) && rawEvents.length > 0) {
+            renderCurrentView();
+          }
         } catch (e) {
           console.error("Cache read error:", e);
         }
       }
 
-      // 2. 裏側で最新カレンダーデータをバックグラウンド取得して更新
       fetchCalendarData();
     });
 
+    // CORS・リダイレクト対応の通信処理
     function fetchCalendarData() {
-      // キャッシュが全くない初回のみローディング表示
       if (rawEvents.length === 0) {
         document.getElementById('content').innerHTML = '<div class="loading">Googleカレンダーから空き枠を取得中...</div>';
       }
 
-      fetch(GAS_API_URL)
-        .then(res => res.json())
-        .then(data => {
-          rawEvents = data;
-          // スマホ内にデータを保存
-          localStorage.setItem(CACHE_KEY, JSON.stringify(data));
-          // 最新データで再描画
-          renderCurrentView();
-        })
-        .catch(err => {
-          console.error(err);
-          if (rawEvents.length === 0) {
-            document.getElementById('content').innerHTML = '<div class="loading">予定の取得に失敗しました</div>';
-          }
-        });
+      fetch(GAS_API_URL, {
+        method: 'GET',
+        redirect: 'follow'
+      })
+      .then(res => {
+        if (!res.ok) {
+          throw new Error('HTTP Status: ' + res.status);
+        }
+        return res.json();
+      })
+      .then(data => {
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        rawEvents = data;
+        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+        renderCurrentView();
+      })
+      .catch(err => {
+        console.error("Fetch error details:", err);
+        if (rawEvents.length === 0) {
+          document.getElementById('content').innerHTML = `
+            <div class="loading">
+              予定の取得に失敗しました。<br><br>
+              <span style="font-size:0.75rem; color:#d93025;">
+                原因: GASのアクセス権限またはURL設定<br>
+                (${err.message})
+              </span>
+            </div>
+          `;
+        }
+      });
     }
 
     function renderWeekNav() {
