@@ -104,6 +104,13 @@
 
     #content { margin-top: 10px; padding-bottom: 110px; }
 
+    /* 診断用デバッグログ表示エリア */
+    .debug-box {
+      background: #fff3cd; border: 1.5px solid #ffeeba; border-radius: 8px;
+      padding: 12px; margin-bottom: 12px; font-size: 0.75rem; color: #856404;
+      line-height: 1.5; font-family: monospace; word-break: break-all;
+    }
+
     .day-card {
       background: var(--card-bg); border-radius: 10px; padding: 10px;
       margin-bottom: 8px; border: 1px solid #e8eaed;
@@ -225,7 +232,7 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-    .loading { text-align: center; color: var(--text-sub); margin-top: 40px; font-size: 0.85rem; padding: 0 20px; }
+    .loading { text-align: center; color: var(--text-sub); margin-top: 20px; font-size: 0.85rem; padding: 0 20px; }
   </style>
 </head>
 <body>
@@ -251,6 +258,7 @@
   </header>
 
   <div id="content">
+    <div id="debugBox" class="debug-box">初期化中...</div>
     <div class="loading">Googleカレンダーから空き枠を取得中...</div>
   </div>
 
@@ -264,8 +272,8 @@
   <div id="toast" class="toast">コピーしました！</div>
 
   <script>
-    // ★ここにGASのURLを貼り付け
-    https://script.google.com/macros/s/AKfycbxEX0_VhSekeiip7CCfrA-RW26oV1heU14eMCOmqNKpoLNxjaoMACZZ5xZxXVNrXc-s/exec;
+    // ★ここにGASのURLを貼り付け（前後に空白がないように注意）
+    const GAS_API_URL = https://script.google.com/macros/s/AKfycbxEX0_VhSekeiip7CCfrA-RW26oV1heU14eMCOmqNKpoLNxjaoMACZZ5xZxXVNrXc-s/exec;
 
     const CACHE_KEY = 'sukima_calendar_cache';
     let currentDuration = 60;
@@ -273,40 +281,58 @@
     let currentWeekOffset = 0;
     let selectedSlots = new Set();
     let rawEvents = [];
-    let isDataLoaded = false;
+
+    function addLog(msg) {
+      console.log(msg);
+      const box = document.getElementById('debugBox');
+      if (box) {
+        box.innerHTML += '<br>▶ ' + msg;
+      }
+    }
 
     // ★GASからのデータ受取口
     window.callback = function(data) {
-      isDataLoaded = true;
+      addLog('✅ データ受信成功！ 件数: ' + (Array.isArray(data) ? data.length + '件' : '形式不正'));
       if (Array.isArray(data)) {
         rawEvents = data;
-        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+        } catch (e) {}
       }
+      // ログ枠を非表示にして即時描画
+      const box = document.getElementById('debugBox');
+      if (box) box.style.display = 'none';
       renderCurrentView();
     };
 
     window.addEventListener('DOMContentLoaded', () => {
+      addLog('DOM読込完了');
       renderWeekNav();
 
-      // キャッシュがあれば即描画
+      if (!GAS_API_URL || GAS_API_URL.includes('ここにGAS')) {
+        addLog('❌ エラー: GAS_API_URL が設定されていません！');
+        return;
+      }
+
+      // キャッシュ読込
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
             rawEvents = parsed;
-            isDataLoaded = true;
+            addLog('📦 キャッシュから ' + rawEvents.length + '件を復元描画');
             renderCurrentView();
           }
-        } catch (e) {
-          console.error("Cache read error:", e);
-        }
+        } catch (e) {}
       }
 
       fetchCalendarDataJSONP();
     });
 
     function fetchCalendarDataJSONP() {
+      addLog('📡 通信開始: ' + GAS_API_URL.substring(0, 45) + '...');
+
       const oldScript = document.getElementById('gas-jsonp-script');
       if (oldScript) oldScript.remove();
 
@@ -317,15 +343,10 @@
       script.id = 'gas-jsonp-script';
       script.src = scriptUrl;
       script.onerror = function() {
-        if (!isDataLoaded) {
-          document.getElementById('content').innerHTML = `
-            <div class="loading" style="color:#d93025;">
-              通信に失敗しました。URLまたは接続環境を確認してください。
-            </div>
-          `;
-        }
+        addLog('❌ 通信エラー発生: スクリプトタグの読み込みに失敗しました。');
       };
       document.body.appendChild(script);
+      addLog('⏳ スクリプトタグ挿入完了。GASの応答待機中...');
     }
 
     function renderWeekNav() {
@@ -379,7 +400,7 @@
     }
 
     function renderCurrentView() {
-      if (!isDataLoaded && rawEvents.length === 0) return;
+      if (!rawEvents || rawEvents.length === 0) return;
       if (currentView === 'list') {
         renderListView();
       } else {
@@ -415,7 +436,7 @@
       return metas;
     }
 
-    /* 1. リスト表示（確実にローディングを上書き） */
+    /* 1. リスト表示 */
     function renderListView() {
       const container = document.getElementById('content');
       const days = getWeekDaysMeta();
@@ -427,7 +448,6 @@
         let buttons = '';
         let pointer = day.start7Ms;
 
-        // 本日の過去時間のみスキップ
         if (day.isToday && nowMs > pointer) {
           pointer = Math.ceil(nowMs / (30 * 60 * 1000)) * (30 * 60 * 1000);
         }
