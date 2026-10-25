@@ -269,3 +269,320 @@
 
     const CACHE_KEY = 'sukima_calendar_cache';
     let currentDuration = 60;
+    let currentView = 'list';
+    let currentWeekOffset = 0;
+    let selectedSlots = new Set();
+    let rawEvents = [];
+
+    // ★GASの callback(...) を受け取る関数
+    window.callback = function(data) {
+      if (!Array.isArray(data)) {
+        console.error("Data error:", data);
+        return;
+      }
+      rawEvents = data;
+      localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+      renderCurrentView();
+    };
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderWeekNav();
+
+      // キャッシュがあれば即座に0秒描画
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        try {
+          rawEvents = JSON.parse(cached);
+          if (Array.isArray(rawEvents) && rawEvents.length > 0) {
+            renderCurrentView();
+          }
+        } catch (e) {
+          console.error("Cache read error:", e);
+        }
+      }
+
+      fetchCalendarDataJSONP();
+    });
+
+    function fetchCalendarDataJSONP() {
+      if (rawEvents.length === 0) {
+        document.getElementById('content').innerHTML = '<div class="loading">Googleカレンダーから空き枠を取得中...</div>';
+      }
+
+      const oldScript = document.getElementById('gas-jsonp-script');
+      if (oldScript) oldScript.remove();
+
+      const delim = GAS_API_URL.includes('?') ? '&' : '?';
+      const scriptUrl = `${GAS_API_URL}${delim}_=${Date.now()}`;
+
+      const script = document.createElement('script');
+      script.id = 'gas-jsonp-script';
+      script.src = scriptUrl;
+      document.body.appendChild(script);
+    }
+
+    function renderWeekNav() {
+      const nav = document.getElementById('weekNav');
+      const now = new Date();
+      const currentDayOfWeek = now.getDay();
+      const baseSunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDayOfWeek);
+      
+      const labels = ["今週", "来週", "3週目", "4週目"];
+      let html = '';
+
+      for (let w = 0; w < 4; w++) {
+        const sun = new Date(baseSunday.getTime() + w * 7 * 24 * 60 * 60 * 1000);
+        const sat = new Date(sun.getTime() + 6 * 24 * 60 * 60 * 1000);
+        
+        const sunLabel = `${sun.getMonth() + 1}/${sun.getDate()}`;
+        const satLabel = `${sat.getMonth() + 1}/${sat.getDate()}`;
+        const activeClass = (w === currentWeekOffset) ? 'active' : '';
+
+        html += `
+          <button class="week-tab ${activeClass}" onclick="selectWeek(${w})">
+            ${labels[w]} (${sunLabel}〜${satLabel})
+          </button>
+        `;
+      }
+      nav.innerHTML = html;
+    }
+
+    function selectWeek(weekIndex) {
+      currentWeekOffset = weekIndex;
+      renderWeekNav();
+      renderCurrentView();
+    }
+
+    function switchView(viewMode) {
+      currentView = viewMode;
+      document.getElementById('btnListView').classList.toggle('active', viewMode === 'list');
+      document.getElementById('btnCalView').classList.toggle('active', viewMode === 'calendar');
+      renderCurrentView();
+    }
+
+    function setDuration(min) {
+      currentDuration = min;
+      document.querySelectorAll('.dur-btn').forEach(btn => {
+        const btnMinutes = parseInt(btn.getAttribute('data-minutes'), 10);
+        btn.classList.toggle('active', btnMinutes === min);
+      });
+      selectedSlots.clear();
+      updateActionBar();
+      renderCurrentView();
+    }
+
+    function renderCurrentView() {
+      if (!rawEvents || rawEvents.length === 0) return;
+      if (currentView === 'list') {
+        renderListView();
+      } else {
+        renderCalendarView();
+      }
+    }
+
+    function getWeekDaysMeta() {
+      const metas = [];
+      const now = new Date();
+      const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
+      const currentDayOfWeek = now.getDay();
+      const baseSunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDayOfWeek);
+      const weekStart = new Date(baseSunday.getTime() + currentWeekOffset * 7 * 24 * 60 * 60 * 1000);
+      const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const iso = `${y}-${m}-${day}`;
+        metas.push({
+          dateLabel: `${d.getMonth() + 1}/${d.getDate()}(${weekDays[d.getDay()]})`,
+          dayOfWeek: d.getDay(),
+          isoDate: iso,
+          isToday: (iso === todayIso),
+          start7Ms: new Date(`${iso}T07:00:00`).getTime(),
+          end24Ms: new Date(`${iso}T07:00:00`).getTime() + 17 * 60 * 60 * 1000
+        });
+      }
+      return metas;
+    }
+
+    function renderListView() {
+      const container = document.getElementById('content');
+      const days = getWeekDaysMeta();
+      const nowMs = Date.now();
+      const durMs = currentDuration * 60 * 1000;
+      let html = '';
+
+      days.forEach(day => {
+        let buttons = '';
+        let pointer = day.start7Ms;
+
+        if (nowMs > pointer) {
+          pointer = Math.ceil(nowMs / (30 * 60 * 1000)) * (30 * 60 * 1000);
+        }
+
+        while (pointer + durMs <= day.end24Ms) {
+          const slotStart = pointer;
+          const slotEnd = pointer + durMs;
+          const isBusy = rawEvents.some(ev => slotStart < ev.e && slotEnd > ev.s);
+
+          if (!isBusy) {
+            const timeText = `${formatTimeFromMs(slotStart)}〜${formatTimeFromMs(slotEnd)}`;
+            const fullText = `${day.dateLabel} ${timeText}`;
+            const isSelected = selectedSlots.has(fullText);
+
+            buttons += `
+              <button 
+                class="slot-btn ${isSelected ? 'selected' : ''}" 
+                onclick="toggleSlot(this, '${fullText}')"
+              >
+                ${timeText}
+              </button>
+            `;
+          }
+          pointer += 30 * 60 * 1000;
+        }
+
+        if (buttons) {
+          html += `
+            <div class="day-card ${day.isToday ? 'today-card' : ''}">
+              <div class="day-title">
+                ${day.dateLabel}
+                ${day.isToday ? '<span class="today-pill">今日</span>' : ''}
+              </div>
+              <div class="slot-grid">${buttons}</div>
+            </div>
+          `;
+        }
+      });
+
+      container.innerHTML = html || `<div class="loading">この週に条件を満たす空き枠はありません</div>`;
+    }
+
+    function renderCalendarView() {
+      const container = document.getElementById('content');
+      const days = getWeekDaysMeta();
+      const durMs = currentDuration * 60 * 1000;
+
+      let tableHtml = '<div class="cal-container"><table class="cal-table"><thead><tr><th class="time-col">時間</th>';
+      days.forEach(d => {
+        const colClass = d.dayOfWeek === 0 ? 'sunday' : (d.dayOfWeek === 6 ? 'saturday' : '');
+        const todayClass = d.isToday ? 'is-today' : '';
+        tableHtml += `
+          <th class="${colClass} ${todayClass}">
+            ${d.dateLabel}
+            ${d.isToday ? '<span class="today-tag">今日</span>' : ''}
+          </th>
+        `;
+      });
+      tableHtml += '</tr></thead><tbody>';
+
+      for (let h = 7; h < 24; h++) {
+        for (let m = 0; m < 60; m += 30) {
+          const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          tableHtml += `<tr><td class="time-col">${m === 0 ? timeStr : ''}</td>`;
+
+          days.forEach(day => {
+            const cellStart = new Date(`${day.isoDate}T${timeStr}:00`).getTime();
+            const cellEnd = cellStart + durMs;
+            const fullEndTime = formatTimeFromMs(cellEnd);
+            const fullText = `${day.dateLabel} ${timeStr}〜${fullEndTime}`;
+            const isSelected = selectedSlots.has(fullText);
+            const todayColClass = day.isToday ? 'is-today' : '';
+
+            const isBusy = rawEvents.some(ev => cellStart < ev.e && cellEnd > ev.s);
+
+            if (isBusy) {
+              tableHtml += `
+                <td class="cal-cell busy ${todayColClass}" title="予定あり">
+                  <span class="busy-badge">予定</span>
+                </td>
+              `;
+            } else if (isSelected) {
+              tableHtml += `
+                <td 
+                  class="cal-cell selected ${todayColClass}" 
+                  onclick="toggleSlot(this, '${fullText}')"
+                  title="${fullText}"
+                >
+                  <span class="selected-badge">✓</span>
+                </td>
+              `;
+            } else {
+              tableHtml += `
+                <td 
+                  class="cal-cell available ${todayColClass}" 
+                  onclick="toggleSlot(this, '${fullText}')"
+                  title="${fullText}"
+                >
+                  <span class="status-badge">空き</span>
+                </td>
+              `;
+            }
+          });
+
+          tableHtml += '</tr>';
+        }
+      }
+
+      tableHtml += '</tbody></table></div>';
+      container.innerHTML = tableHtml;
+    }
+
+    function toggleSlot(element, text) {
+      if (selectedSlots.has(text)) {
+        selectedSlots.delete(text);
+      } else {
+        selectedSlots.add(text);
+      }
+      updateActionBar();
+      renderCurrentView();
+    }
+
+    function updateActionBar() {
+      const bar = document.getElementById('actionBar');
+      const copyBtn = document.getElementById('copyAllBtn');
+      const count = selectedSlots.size;
+
+      if (count > 0) {
+        bar.classList.add('visible');
+        copyBtn.textContent = `📋 ${count}件の候補をまとめてコピー`;
+      } else {
+        bar.classList.remove('visible');
+      }
+    }
+
+    function copyAllSelected() {
+      if (selectedSlots.size === 0) return;
+
+      const items = Array.from(selectedSlots);
+      const text = items.map(item => `・${item}`).join('\n');
+
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`${items.length}件の候補をコピーしました！`);
+      });
+    }
+
+    function clearSelected() {
+      selectedSlots.clear();
+      updateActionBar();
+      renderCurrentView();
+    }
+
+    function formatTimeFromMs(ms) {
+      const d = new Date(ms);
+      if (d.getHours() === 0 && d.getMinutes() === 0) return '24:00';
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+  </script>
+</body>
+</html>
