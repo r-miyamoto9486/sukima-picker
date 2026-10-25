@@ -15,18 +15,29 @@
   <link rel="apple-touch-icon" sizes="180x180" href="./icon.png?v=2">
   <link rel="shortcut icon" href="./icon.png?v=2">
 
-  <link rel="manifest" href="data:application/manifest+json,{
-    %22name%22:%22スキマ時間ピッカー%22,
-    %22short_name%22:%22スキマ時間%22,
-    %22start_url%22:%22.%22,
-    %22display%22:%22standalone%22,
-    %22background_color%22:%22%23ffffff%22,
-    %22theme_color%22:%22%231a73e8%22,
-    %22icons%22:[
-      {%22src%22:%22icon.png?v=2%22,%22sizes%22:%22192x192%22,%22type%22:%22image/png%22,%22purpose%22:%22any%20maskable%22},
-      {%22src%22:%22icon.png?v=2%22,%22sizes%22:%22512x512%22,%22type%22:%22image/png%22,%22purpose%22:%22any%20maskable%22}
+<!-- Android Chrome PWA用 Manifest（黒背景の自動合成を完全無効化） -->
+  <link rel="manifest" href='data:application/manifest+json,{
+    "name":"スキマ時間ピッカー",
+    "short_name":"スキマ時間",
+    "start_url":"./",
+    "display":"standalone",
+    "background_color":"#ffffff",
+    "theme_color":"#ffffff",
+    "icons":[
+      {
+        "src":"https://【あなたのユーザー名】.github.io/【リポジトリ名】/icon.png?v=4",
+        "sizes":"192x192",
+        "type":"image/png",
+        "purpose":"any"
+      },
+      {
+        "src":"https://【あなたのユーザー名】.github.io/【リポジトリ名】/icon.png?v=4",
+        "sizes":"512x512",
+        "type":"image/png",
+        "purpose":"any"
+      }
     ]
-  }">
+  }'>
 
   <style>
     /* デフォルト：ブルー */
