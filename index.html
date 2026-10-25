@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>スキマ時間ピッカー</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <!-- Android Chrome / PWA設定 -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#1a73e8">
+
+  <!-- iPhone Safari設定 -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="スキマ時間">
+
+  <!-- アイコン（同じフォルダ内の icon.png を参照） -->
+  <link rel="icon" type="image/png" sizes="192x192" href="icon.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="icon.png">
+  <link rel="shortcut icon" href="icon.png">
+
+  <!-- Android用 Manifest -->
+  <link rel="manifest" href="data:application/manifest+json,{
+    %22name%22:%22スキマ時間ピッカー%22,
+    %22short_name%22:%22スキマ時間%22,
+    %22start_url%22:%22.%22,
+    %22display%22:%22standalone%22,
+    %22background_color%22:%22%23ffffff%22,
+    %22theme_color%22:%22%231a73e8%22,
+    %22icons%22:[
+      {%22src%22:%22icon.png%22,%22sizes%22:%22512x512%22,%22type%22:%22image/png%22,%22purpose%22:%22any%20maskable%22}
+    ]
+  }">
+
+  <style>
+    :root {
+      --primary: #1a73e8;
+      --primary-light: #e8f0fe;
+      --bg: #f8f9fa;
+      --card-bg: #ffffff;
+      --text: #202124;
+      --text-sub: #5f6368;
+      --today-bg: #f2f7ff;
+      --today-border: #8ab4f8;
+    }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body {
+      margin: 0; padding: 10px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg); color: var(--text);
+    }
+    header {
+      position: sticky; top: 0; background: var(--bg);
+      padding-bottom: 8px; z-index: 100;
+      border-bottom: 1px solid #e0e0e0;
+    }
+    .top-bar {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 8px;
+    }
+    h1 { font-size: 1.05rem; margin: 0; font-weight: 700; }
+
+    .week-nav {
+      display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
+      padding-bottom: 6px; margin-bottom: 6px;
+    }
+    .week-nav::-webkit-scrollbar { display: none; }
+    .week-tab {
+      flex: 0 0 auto; padding: 6px 12px; border-radius: 20px;
+      background: #ffffff; border: 1px solid #dadce0;
+      font-size: 0.78rem; font-weight: 600; color: var(--text-sub);
+      cursor: pointer; white-space: nowrap; transition: all 0.2s;
+    }
+    .week-tab.active {
+      background: var(--primary); color: #ffffff; border-color: var(--primary);
+      box-shadow: 0 2px 6px rgba(26, 115, 232, 0.3);
+    }
+
+    .view-switch {
+      display: flex; background: #e8eaed; border-radius: 8px; padding: 2px;
+      margin-bottom: 6px;
+    }
+    .view-btn {
+      flex: 1; border: none; background: transparent; padding: 5px 0;
+      border-radius: 6px; font-size: 0.8rem; font-weight: bold;
+      color: var(--text-sub); cursor: pointer; transition: all 0.2s;
+    }
+    .view-btn.active {
+      background: #ffffff; color: var(--primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+    }
+
+    .dur-tabs {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;
+    }
+    .dur-btn {
+      padding: 7px 0; border: 1px solid #dadce0; border-radius: 6px;
+      background: #fff; font-size: 0.82rem; font-weight: bold;
+      color: #3c4043; cursor: pointer; text-align: center;
+    }
+    .dur-btn.active {
+      background: var(--primary); color: #fff; border-color: var(--primary);
+    }
+
+    #content { margin-top: 10px; padding-bottom: 110px; }
+
+    .day-card {
+      background: var(--card-bg); border-radius: 10px; padding: 10px;
+      margin-bottom: 8px; border: 1px solid #e8eaed;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+    }
+    .day-card.today-card {
+      border: 2px solid var(--today-border);
+      background: #fbfdff;
+    }
+    .day-title {
+      font-weight: bold; font-size: 0.88rem; margin-bottom: 6px;
+      color: var(--primary); display: flex; align-items: center; gap: 6px;
+    }
+    .today-pill {
+      font-size: 0.65rem; background: var(--primary); color: #fff;
+      padding: 1px 6px; border-radius: 10px; font-weight: normal;
+    }
+
+    .slot-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 6px;
+    }
+    .slot-btn {
+      background: #e8f0fe; color: #174ea6; border: 1px solid #d2e3fc;
+      border-radius: 6px; padding: 7px 4px; font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; text-align: center; position: relative;
+    }
+    .slot-btn:active { transform: scale(0.96); }
+    .slot-btn.selected {
+      background: #1a73e8 !important; color: #ffffff !important; border-color: #1a73e8 !important;
+    }
+    .slot-btn.selected::after {
+      content: "✓"; position: absolute; top: 1px; right: 4px; font-size: 0.7rem;
+    }
+
+    .cal-container {
+      overflow-x: auto; -webkit-overflow-scrolling: touch;
+      background: #fff; border-radius: 8px; border: 1px solid #dadce0;
+    }
+    .cal-table {
+      border-collapse: collapse; width: 100%; min-width: 520px; table-layout: fixed;
+    }
+    .cal-table th, .cal-table td {
+      border: 1px solid #e8eaed; text-align: center; font-size: 0.72rem;
+      padding: 0; position: relative;
+    }
+    .cal-table th {
+      padding: 6px 1px; background: #fafafa; font-weight: bold; color: #3c4043;
+      border-bottom: 2px solid #dadce0;
+    }
+    .cal-table th.time-col { width: 44px; background: #f8f9fa; color: #70757a; font-size: 0.7rem; }
+    .cal-table th.sunday { color: #d93025; }
+    .cal-table th.saturday { color: #1a73e8; }
+    .cal-table th.is-today {
+      background: #e8f0fe !important;
+      color: var(--primary) !important;
+      border-top: 3px solid var(--primary);
+    }
+    .cal-table td.is-today {
+      background-color: var(--today-bg);
+      border-left: 1.5px solid var(--today-border);
+      border-right: 1.5px solid var(--today-border);
+    }
+    .today-tag {
+      display: block; font-size: 0.58rem; background: var(--primary);
+      color: #fff; border-radius: 3px; padding: 1px 3px; width: fit-content;
+      margin: 2px auto 0 auto;
+    }
+    
+    .cal-cell {
+      height: 34px; cursor: pointer; vertical-align: middle; padding: 1px;
+    }
+    .cal-cell.available { background: inherit; }
+    .cal-cell.available:hover { background: #e3effd; }
+    .status-badge {
+      display: inline-block; font-size: 0.6rem; font-weight: 600;
+      color: #1a73e8; background: #e8f0fe; border-radius: 3px; padding: 1px 4px;
+    }
+    .cal-cell.busy {
+      background: repeating-linear-gradient(-45deg, #f8f9fa, #f8f9fa 5px, #f1f3f4 5px, #f1f3f4 10px);
+      cursor: not-allowed;
+    }
+    .busy-badge {
+      display: inline-block; font-size: 0.58rem; color: #9aa0a6;
+      background: rgba(255, 255, 255, 0.85); border-radius: 3px; padding: 1px 3px;
+    }
+    .cal-cell.selected {
+      background: #1a73e8 !important; box-shadow: inset 0 0 0 2px #1557b0;
+    }
+    .selected-badge {
+      display: inline-block; font-size: 0.6rem; font-weight: bold;
+      color: #ffffff; background: #1557b0; border-radius: 3px; padding: 1px 4px;
+    }
+
+    .action-bar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      background: #ffffff; padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+      box-shadow: 0 -3px 12px rgba(0,0,0,0.08);
+      display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      z-index: 500; border-top: 1px solid #ebebeb;
+      transform: translateY(100%); transition: transform 0.25s ease;
+    }
+    .action-bar.visible { transform: translateY(0); }
+    .clear-btn {
+      background: #f1f3f4; color: #5f6368; border: none;
+      border-radius: 6px; padding: 10px 12px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+    }
+    .copy-all-btn {
+      flex: 1; background: var(--primary); color: #ffffff; border: none;
+      border-radius: 6px; padding: 10px 14px; font-size: 0.88rem; font-weight: bold;
+      cursor: pointer; box-shadow: 0 2px 6px rgba(26, 115, 232, 0.3);
+    }
+    .copy-all-btn:active { opacity: 0.9; }
+
+    .toast {
+      position: fixed; bottom: 75px; left: 50%; transform: translateX(-50%) translateY(20px);
+      background: rgba(32, 33, 36, 0.95); color: #fff; padding: 9px 18px;
+      border-radius: 24px; font-size: 0.82rem; font-weight: 500; z-index: 999;
+      opacity: 0; pointer-events: none; transition: all 0.25s ease;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .loading { text-align: center; color: var(--text-sub); margin-top: 40px; font-size: 0.85rem; }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="top-bar">
+      <h1>⏱️ スキマ時間</h1>
+    </div>
+
+    <div class="week-nav" id="weekNav"></div>
+
+    <div class="view-switch">
+      <button class="view-btn active" id="btnListView" onclick="switchView('list')">📋 空き枠リスト</button>
+      <button class="view-btn" id="btnCalView" onclick="switchView('calendar')">📅 週間カレンダー</button>
+    </div>
+
+    <div class="dur-tabs">
+      <button class="dur-btn" data-minutes="30" onclick="setDuration(30)">30分</button>
+      <button class="dur-btn active" data-minutes="60" onclick="setDuration(60)">60分</button>
+      <button class="dur-btn" data-minutes="90" onclick="setDuration(90)">90分</button>
+      <button class="dur-btn" data-minutes="120" onclick="setDuration(120)">120分</button>
+    </div>
+  </header>
+
+  <div id="content">
+    <div class="loading">Googleカレンダーから空き枠を取得中...</div>
+  </div>
+
+  <div id="actionBar" class="action-bar">
+    <button class="clear-btn" onclick="clearSelected()">解除</button>
+    <button id="copyAllBtn" class="copy-all-btn" onclick="copyAllSelected()">
+      0件をまとめてコピー
+    </button>
+  </div>
+
+  <div id="toast" class="toast">コピーしました！</div>
+
+  <script>
+    // ★ここにステップ1で取得したGASのデプロイURLを貼り付ける
+    const GAS_API_URL = https://script.google.com/macros/s/AKfycbxEX0_VhSekeiip7CCfrA-RW26oV1heU14eMCOmqNKpoLNxjaoMACZZ5xZxXVNrXc-s/exec;
+
+    let currentDuration = 60;
+    let currentView = 'list';
+    let currentWeekOffset = 0;
+    let selectedSlots = new Set();
+    let rawEvents = [];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      renderWeekNav();
+      fetchCalendarData();
+    });
+
+    // GASから予定データをfetchで高速取得
+    function fetchCalendarData() {
+      fetch(GAS_API_URL)
+        .then(res => res.json())
+        .then(data => {
+          rawEvents = data;
+          renderCurrentView();
+        })
+        .catch(err => {
+          console.error(err);
+          document.getElementById('content').innerHTML = '<div class="loading">予定の取得に失敗しました。URLを確認してください。</div>';
+        });
+    }
+
+    function renderWeekNav() {
+      const nav = document.getElementById('weekNav');
+      const now = new Date();
+      const currentDayOfWeek = now.getDay();
+      const baseSunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDayOfWeek);
+      
+      const labels = ["今週", "来週", "3週目", "4週目"];
+      let html = '';
+
+      for (let w = 0; w < 4; w++) {
+        const sun = new Date(baseSunday.getTime() + w * 7 * 24 * 60 * 60 * 1000);
+        const sat = new Date(sun.getTime() + 6 * 24 * 60 * 60 * 1000);
+        
+        const sunLabel = `${sun.getMonth() + 1}/${sun.getDate()}`;
+        const satLabel = `${sat.getMonth() + 1}/${sat.getDate()}`;
+        const activeClass = (w === currentWeekOffset) ? 'active' : '';
+
+        html += `
+          <button class="week-tab ${activeClass}" onclick="selectWeek(${w})">
+            ${labels[w]} (${sunLabel}〜${satLabel})
+          </button>
+        `;
+      }
+      nav.innerHTML = html;
+    }
+
+    function selectWeek(weekIndex) {
+      currentWeekOffset = weekIndex;
+      renderWeekNav();
+      renderCurrentView();
+    }
+
+    function switchView(viewMode) {
+      currentView = viewMode;
+      document.getElementById('btnListView').classList.toggle('active', viewMode === 'list');
+      document.getElementById('btnCalView').classList.toggle('active', viewMode === 'calendar');
+      renderCurrentView();
+    }
+
+    function setDuration(min) {
+      currentDuration = min;
+      document.querySelectorAll('.dur-btn').forEach(btn => {
+        const btnMinutes = parseInt(btn.getAttribute('data-minutes'), 10);
+        btn.classList.toggle('active', btnMinutes === min);
+      });
+      selectedSlots.clear();
+      updateActionBar();
+      renderCurrentView();
+    }
+
+    function renderCurrentView() {
+      if (rawEvents.length === 0 && !document.querySelector('.day-card')) return;
+      if (currentView === 'list') {
+        renderListView();
+      } else {
+        renderCalendarView();
+      }
+    }
+
+    function getWeekDaysMeta() {
+      const metas = [];
+      const now = new Date();
+      const todayIso = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      
+      const currentDayOfWeek = now.getDay();
+      const baseSunday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - currentDayOfWeek);
+      const weekStart = new Date(baseSunday.getTime() + currentWeekOffset * 7 * 24 * 60 * 60 * 1000);
+      const weekDays = ["日", "月", "火", "水", "木", "金", "土"];
+
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(weekStart.getFullYear(), weekStart.getMonth(), weekStart.getDate() + i);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        const iso = `${y}-${m}-${day}`;
+        metas.push({
+          dateLabel: `${d.getMonth() + 1}/${d.getDate()}(${weekDays[d.getDay()]})`,
+          dayOfWeek: d.getDay(),
+          isoDate: iso,
+          isToday: (iso === todayIso),
+          start7Ms: new Date(`${iso}T07:00:00`).getTime(),
+          end24Ms: new Date(`${iso}T07:00:00`).getTime() + 17 * 60 * 60 * 1000
+        });
+      }
+      return metas;
+    }
+
+    function renderListView() {
+      const container = document.getElementById('content');
+      const days = getWeekDaysMeta();
+      const nowMs = Date.now();
+      const durMs = currentDuration * 60 * 1000;
+      let html = '';
+
+      days.forEach(day => {
+        let buttons = '';
+        let pointer = day.start7Ms;
+
+        if (nowMs > pointer) {
+          pointer = Math.ceil(nowMs / (30 * 60 * 1000)) * (30 * 60 * 1000);
+        }
+
+        while (pointer + durMs <= day.end24Ms) {
+          const slotStart = pointer;
+          const slotEnd = pointer + durMs;
+          const isBusy = rawEvents.some(ev => slotStart < ev.e && slotEnd > ev.s);
+
+          if (!isBusy) {
+            const timeText = `${formatTimeFromMs(slotStart)}〜${formatTimeFromMs(slotEnd)}`;
+            const fullText = `${day.dateLabel} ${timeText}`;
+            const isSelected = selectedSlots.has(fullText);
+
+            buttons += `
+              <button 
+                class="slot-btn ${isSelected ? 'selected' : ''}" 
+                onclick="toggleSlot(this, '${fullText}')"
+              >
+                ${timeText}
+              </button>
+            `;
+          }
+          pointer += 30 * 60 * 1000;
+        }
+
+        if (buttons) {
+          html += `
+            <div class="day-card ${day.isToday ? 'today-card' : ''}">
+              <div class="day-title">
+                ${day.dateLabel}
+                ${day.isToday ? '<span class="today-pill">今日</span>' : ''}
+              </div>
+              <div class="slot-grid">${buttons}</div>
+            </div>
+          `;
+        }
+      });
+
+      container.innerHTML = html || `<div class="loading">この週に条件を満たす空き枠はありません</div>`;
+    }
+
+    function renderCalendarView() {
+      const container = document.getElementById('content');
+      const days = getWeekDaysMeta();
+      const durMs = currentDuration * 60 * 1000;
+
+      let tableHtml = '<div class="cal-container"><table class="cal-table"><thead><tr><th class="time-col">時間</th>';
+      days.forEach(d => {
+        const colClass = d.dayOfWeek === 0 ? 'sunday' : (d.dayOfWeek === 6 ? 'saturday' : '');
+        const todayClass = d.isToday ? 'is-today' : '';
+        tableHtml += `
+          <th class="${colClass} ${todayClass}">
+            ${d.dateLabel}
+            ${d.isToday ? '<span class="today-tag">今日</span>' : ''}
+          </th>
+        `;
+      });
+      tableHtml += '</tr></thead><tbody>';
+
+      for (let h = 7; h < 24; h++) {
+        for (let m = 0; m < 60; m += 30) {
+          const timeStr = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+          tableHtml += `<tr><td class="time-col">${m === 0 ? timeStr : ''}</td>`;
+
+          days.forEach(day => {
+            const cellStart = new Date(`${day.isoDate}T${timeStr}:00`).getTime();
+            const cellEnd = cellStart + durMs;
+            const fullEndTime = formatTimeFromMs(cellEnd);
+            const fullText = `${day.dateLabel} ${timeStr}〜${fullEndTime}`;
+            const isSelected = selectedSlots.has(fullText);
+            const todayColClass = day.isToday ? 'is-today' : '';
+
+            const isBusy = rawEvents.some(ev => cellStart < ev.e && cellEnd > ev.s);
+
+            if (isBusy) {
+              tableHtml += `
+                <td class="cal-cell busy ${todayColClass}" title="予定あり">
+                  <span class="busy-badge">予定</span>
+                </td>
+              `;
+            } else if (isSelected) {
+              tableHtml += `
+                <td 
+                  class="cal-cell selected ${todayColClass}" 
+                  onclick="toggleSlot(this, '${fullText}')"
+                  title="${fullText}"
+                >
+                  <span class="selected-badge">✓</span>
+                </td>
+              `;
+            } else {
+              tableHtml += `
+                <td 
+                  class="cal-cell available ${todayColClass}" 
+                  onclick="toggleSlot(this, '${fullText}')"
+                  title="${fullText}"
+                >
+                  <span class="status-badge">空き</span>
+                </td>
+              `;
+            }
+          });
+
+          tableHtml += '</tr>';
+        }
+      }
+
+      tableHtml += '</tbody></table></div>';
+      container.innerHTML = tableHtml;
+    }
+
+    function toggleSlot(element, text) {
+      if (selectedSlots.has(text)) {
+        selectedSlots.delete(text);
+      } else {
+        selectedSlots.add(text);
+      }
+      updateActionBar();
+      renderCurrentView();
+    }
+
+    function updateActionBar() {
+      const bar = document.getElementById('actionBar');
+      const copyBtn = document.getElementById('copyAllBtn');
+      const count = selectedSlots.size;
+
+      if (count > 0) {
+        bar.classList.add('visible');
+        copyBtn.textContent = `📋 ${count}件の候補をまとめてコピー`;
+      } else {
+        bar.classList.remove('visible');
+      }
+    }
+
+    function copyAllSelected() {
+      if (selectedSlots.size === 0) return;
+
+      const items = Array.from(selectedSlots);
+      const text = items.map(item => `・${item}`).join('\n');
+
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`${items.length}件の候補をコピーしました！`);
+      });
+    }
+
+    function clearSelected() {
+      selectedSlots.clear();
+      updateActionBar();
+      renderCurrentView();
+    }
+
+    function formatTimeFromMs(ms) {
+      const d = new Date(ms);
+      if (d.getHours() === 0 && d.getMinutes() === 0) return '24:00';
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+  </script>
+</body>
+</html>
