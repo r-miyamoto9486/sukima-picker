@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="theme-color" content="#1a73e8">
+  <meta name="theme-color" content="#1a73e8" id="metaThemeColor">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="スキマ時間">
@@ -16,56 +16,123 @@
   <link rel="shortcut icon" href="icon.png">
 
   <style>
+    /* デフォルト：ブルー */
     :root {
       --primary: #1a73e8;
       --primary-light: #e8f0fe;
+      --primary-border: #c2e7ff;
+      --primary-dark: #1557b0;
       --bg: #f8f9fa;
       --card-bg: #ffffff;
       --text: #202124;
       --text-sub: #5f6368;
       --today-bg: #f2f7ff;
       --today-border: #8ab4f8;
+      --cell-border: #e8eaed;
+      --cal-bg: #ffffff;
     }
+
+    /* 1. エメラルド */
+    body.theme-emerald {
+      --primary: #0f9d58;
+      --primary-light: #e6f4ea;
+      --primary-border: #ceead6;
+      --primary-dark: #0b8043;
+      --today-bg: #f1f8f3;
+      --today-border: #81c995;
+    }
+
+    /* 2. オレンジ */
+    body.theme-orange {
+      --primary: #ea580c;
+      --primary-light: #ffedd5;
+      --primary-border: #fed7aa;
+      --primary-dark: #c2410c;
+      --today-bg: #fff7ed;
+      --today-border: #fdba74;
+    }
+
+    /* 3. パープル */
+    body.theme-purple {
+      --primary: #7c3aed;
+      --primary-light: #f3e8ff;
+      --primary-border: #e9d5ff;
+      --primary-dark: #6d28d9;
+      --today-bg: #faf5ff;
+      --today-border: #c084fc;
+    }
+
+    /* 4. ダークモード */
+    body.theme-dark {
+      --primary: #8ab4f8;
+      --primary-light: #202836;
+      --primary-border: #3b4d6b;
+      --primary-dark: #aecbfa;
+      --bg: #121212;
+      --card-bg: #1e1e1e;
+      --text: #e8eaed;
+      --text-sub: #9aa0a6;
+      --today-bg: #1f2a38;
+      --today-border: #4d6b99;
+      --cell-border: #333333;
+      --cal-bg: #1e1e1e;
+    }
+
     * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
     body {
       margin: 0; padding: 10px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       background: var(--bg); color: var(--text);
+      transition: background 0.2s, color 0.2s;
     }
     header {
       position: sticky; top: 0; background: var(--bg);
       padding-bottom: 8px; z-index: 100;
-      border-bottom: 1px solid #e0e0e0;
+      border-bottom: 1px solid var(--cell-border);
     }
     .top-bar {
       display: flex; justify-content: space-between; align-items: center;
       margin-bottom: 8px;
     }
-    h1 { font-size: 1.05rem; margin: 0; font-weight: 700; }
+    h1 { font-size: 1.05rem; margin: 0; font-weight: 700; color: var(--text); }
 
     /* 設定エリア */
     .setup-card {
-      background: #ffffff; border: 2px dashed #1a73e8; border-radius: 10px;
-      padding: 14px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+      background: var(--card-bg); border: 1.5px solid var(--primary-border); border-radius: 12px;
+      padding: 14px; margin-bottom: 15px; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
     }
-    .setup-title { font-size: 0.9rem; font-weight: bold; color: var(--primary); margin-bottom: 6px; }
+    .setup-title { font-size: 0.9rem; font-weight: bold; color: var(--primary); margin-bottom: 10px; }
     .setup-desc { font-size: 0.75rem; color: var(--text-sub); margin-bottom: 8px; line-height: 1.4; }
     .setup-input {
-      width: 100%; padding: 8px; border: 1px solid #dadce0; border-radius: 6px;
-      font-size: 0.78rem; margin-bottom: 8px; outline: none;
+      width: 100%; padding: 8px; border: 1px solid var(--cell-border); border-radius: 6px;
+      font-size: 0.78rem; margin-bottom: 12px; outline: none; background: var(--bg); color: var(--text);
     }
     .setup-btn {
       width: 100%; background: var(--primary); color: #fff; border: none;
       border-radius: 6px; padding: 9px; font-size: 0.85rem; font-weight: bold; cursor: pointer;
     }
 
-    /* 診断ログ枠 */
-    .debug-box {
-      background: #fff3cd; border: 1.5px solid #ffeeba; border-radius: 8px;
-      padding: 10px; margin-bottom: 10px; font-size: 0.72rem; color: #856404;
-      line-height: 1.4; font-family: monospace; word-break: break-all;
+    /* テーマ切り替えパレット選択 */
+    .theme-selector {
+      display: flex; gap: 8px; margin-bottom: 14px; overflow-x: auto; padding-bottom: 4px;
     }
+    .theme-chip {
+      flex: 1; min-width: 58px; text-align: center; padding: 8px 4px;
+      border-radius: 8px; border: 2px solid transparent; cursor: pointer;
+      font-size: 0.72rem; font-weight: bold; color: #ffffff;
+      transition: transform 0.15s, border-color 0.15s;
+    }
+    .theme-chip:active { transform: scale(0.95); }
+    .theme-chip.active { border-color: #202124; box-shadow: 0 0 0 1px #fff; }
+    body.theme-dark .theme-chip.active { border-color: #ffffff; }
 
+    .chip-blue { background: #1a73e8; }
+    .chip-emerald { background: #0f9d58; }
+    .chip-orange { background: #ea580c; }
+    .chip-purple { background: #7c3aed; }
+    .chip-dark { background: #2d3748; }
+
+    /* 週ナビ */
     .week-nav {
       display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch;
       padding-bottom: 6px; margin-bottom: 6px;
@@ -73,17 +140,18 @@
     .week-nav::-webkit-scrollbar { display: none; }
     .week-tab {
       flex: 0 0 auto; padding: 6px 12px; border-radius: 20px;
-      background: #ffffff; border: 1px solid #dadce0;
+      background: var(--card-bg); border: 1px solid var(--cell-border);
       font-size: 0.78rem; font-weight: 600; color: var(--text-sub);
       cursor: pointer; white-space: nowrap; transition: all 0.2s;
     }
     .week-tab.active {
       background: var(--primary); color: #ffffff; border-color: var(--primary);
-      box-shadow: 0 2px 6px rgba(26, 115, 232, 0.3);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.15);
     }
 
+    /* 表示モード切替 */
     .view-switch {
-      display: flex; background: #e8eaed; border-radius: 8px; padding: 2px;
+      display: flex; background: rgba(128, 128, 128, 0.12); border-radius: 8px; padding: 2px;
       margin-bottom: 6px;
     }
     .view-btn {
@@ -92,17 +160,18 @@
       color: var(--text-sub); cursor: pointer; transition: all 0.2s;
     }
     .view-btn.active {
-      background: #ffffff; color: var(--primary);
+      background: var(--card-bg); color: var(--primary);
       box-shadow: 0 1px 3px rgba(0,0,0,0.12);
     }
 
+    /* 時間枠タブ */
     .dur-tabs {
       display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px;
     }
     .dur-btn {
-      padding: 7px 0; border: 1px solid #dadce0; border-radius: 6px;
-      background: #fff; font-size: 0.82rem; font-weight: bold;
-      color: #3c4043; cursor: pointer; text-align: center;
+      padding: 7px 0; border: 1px solid var(--cell-border); border-radius: 6px;
+      background: var(--card-bg); font-size: 0.82rem; font-weight: bold;
+      color: var(--text-sub); cursor: pointer; text-align: center;
     }
     .dur-btn.active {
       background: var(--primary); color: #fff; border-color: var(--primary);
@@ -110,14 +179,15 @@
 
     #content { margin-top: 10px; padding-bottom: 110px; }
 
+    /* 空き枠リスト */
     .day-card {
       background: var(--card-bg); border-radius: 10px; padding: 10px;
-      margin-bottom: 8px; border: 1px solid #e8eaed;
+      margin-bottom: 8px; border: 1px solid var(--cell-border);
       box-shadow: 0 1px 2px rgba(0,0,0,0.03);
     }
     .day-card.today-card {
       border: 2px solid var(--today-border);
-      background: #fbfdff;
+      background: var(--today-bg);
     }
     .day-title {
       font-weight: bold; font-size: 0.88rem; margin-bottom: 6px;
@@ -132,38 +202,39 @@
       display: grid; grid-template-columns: repeat(auto-fill, minmax(125px, 1fr)); gap: 6px;
     }
     .slot-btn {
-      background: #e8f0fe; color: #174ea6; border: 1px solid #d2e3fc;
+      background: var(--primary-light); color: var(--primary); border: 1px solid var(--primary-border);
       border-radius: 6px; padding: 7px 4px; font-size: 0.8rem; font-weight: 600;
       cursor: pointer; text-align: center; position: relative;
     }
     .slot-btn:active { transform: scale(0.96); }
     .slot-btn.selected {
-      background: #1a73e8 !important; color: #ffffff !important; border-color: #1a73e8 !important;
+      background: var(--primary) !important; color: #ffffff !important; border-color: var(--primary) !important;
     }
     .slot-btn.selected::after {
       content: "✓"; position: absolute; top: 1px; right: 4px; font-size: 0.7rem;
     }
 
+    /* 週間カレンダー */
     .cal-container {
       overflow-x: auto; -webkit-overflow-scrolling: touch;
-      background: #fff; border-radius: 8px; border: 1px solid #dadce0;
+      background: var(--cal-bg); border-radius: 8px; border: 1px solid var(--cell-border);
     }
     .cal-table {
       border-collapse: collapse; width: 100%; min-width: 520px; table-layout: fixed;
     }
     .cal-table th, .cal-table td {
-      border: 1px solid #e8eaed; text-align: center; font-size: 0.72rem;
+      border: 1px solid var(--cell-border); text-align: center; font-size: 0.72rem;
       padding: 0; position: relative;
     }
     .cal-table th {
-      padding: 6px 1px; background: #fafafa; font-weight: bold; color: #3c4043;
-      border-bottom: 2px solid #dadce0;
+      padding: 6px 1px; background: var(--card-bg); font-weight: bold; color: var(--text);
+      border-bottom: 2px solid var(--cell-border);
     }
-    .cal-table th.time-col { width: 44px; background: #f8f9fa; color: #70757a; font-size: 0.7rem; }
+    .cal-table th.time-col { width: 44px; background: rgba(128,128,128,0.06); color: var(--text-sub); font-size: 0.7rem; }
     .cal-table th.sunday { color: #d93025; }
     .cal-table th.saturday { color: #1a73e8; }
     .cal-table th.is-today {
-      background: #e8f0fe !important;
+      background: var(--primary-light) !important;
       color: var(--primary) !important;
       border-top: 3px solid var(--primary);
     }
@@ -182,44 +253,45 @@
       height: 34px; cursor: pointer; vertical-align: middle; padding: 1px;
     }
     .cal-cell.available { background: inherit; }
-    .cal-cell.available:hover { background: #e3effd; }
+    .cal-cell.available:hover { background: var(--primary-light); }
     .status-badge {
       display: inline-block; font-size: 0.6rem; font-weight: 600;
-      color: #1a73e8; background: #e8f0fe; border-radius: 3px; padding: 1px 4px;
+      color: var(--primary); background: var(--primary-light); border-radius: 3px; padding: 1px 4px;
     }
     .cal-cell.busy {
-      background: repeating-linear-gradient(-45deg, #f8f9fa, #f8f9fa 5px, #f1f3f4 5px, #f1f3f4 10px);
+      background: repeating-linear-gradient(-45deg, rgba(128,128,128,0.06), rgba(128,128,128,0.06) 5px, rgba(128,128,128,0.12) 5px, rgba(128,128,128,0.12) 10px);
       cursor: not-allowed;
     }
     .busy-badge {
-      display: inline-block; font-size: 0.58rem; color: #9aa0a6;
-      background: rgba(255, 255, 255, 0.85); border-radius: 3px; padding: 1px 3px;
+      display: inline-block; font-size: 0.58rem; color: var(--text-sub);
+      background: rgba(128, 128, 128, 0.15); border-radius: 3px; padding: 1px 3px;
     }
     .cal-cell.selected {
-      background: #1a73e8 !important; box-shadow: inset 0 0 0 2px #1557b0;
+      background: var(--primary) !important; box-shadow: inset 0 0 0 2px var(--primary-dark);
     }
     .selected-badge {
       display: inline-block; font-size: 0.6rem; font-weight: bold;
-      color: #ffffff; background: #1557b0; border-radius: 3px; padding: 1px 4px;
+      color: #ffffff; background: var(--primary-dark); border-radius: 3px; padding: 1px 4px;
     }
 
+    /* 下部アクションバー */
     .action-bar {
       position: fixed; bottom: 0; left: 0; right: 0;
-      background: #ffffff; padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
-      box-shadow: 0 -3px 12px rgba(0,0,0,0.08);
+      background: var(--card-bg); padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+      box-shadow: 0 -3px 12px rgba(0,0,0,0.1);
       display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      z-index: 500; border-top: 1px solid #ebebeb;
+      z-index: 500; border-top: 1px solid var(--cell-border);
       transform: translateY(100%); transition: transform 0.25s ease;
     }
     .action-bar.visible { transform: translateY(0); }
     .clear-btn {
-      background: #f1f3f4; color: #5f6368; border: none;
+      background: rgba(128,128,128,0.1); color: var(--text-sub); border: none;
       border-radius: 6px; padding: 10px 12px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
     }
     .copy-all-btn {
       flex: 1; background: var(--primary); color: #ffffff; border: none;
       border-radius: 6px; padding: 10px 14px; font-size: 0.88rem; font-weight: bold;
-      cursor: pointer; box-shadow: 0 2px 6px rgba(26, 115, 232, 0.3);
+      cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.2);
     }
     .copy-all-btn:active { opacity: 0.9; }
 
@@ -231,7 +303,7 @@
       box-shadow: 0 4px 12px rgba(0,0,0,0.15); max-width: 90%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     }
     .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
-    .loading { text-align: center; color: var(--text-sub); margin-top: 20px; font-size: 0.85rem; padding: 0 20px; }
+    .loading { text-align: center; color: var(--text-sub); margin-top: 40px; font-size: 0.85rem; padding: 0 20px; }
   </style>
 </head>
 <body>
@@ -239,7 +311,24 @@
   <header>
     <div class="top-bar">
       <h1>⏱️ スキマ時間</h1>
-      <button onclick="toggleSetup(true)" style="background:none; border:none; font-size:0.8rem; color:#1a73e8; cursor:pointer; font-weight:bold;">⚙️ 設定</button>
+      <button onclick="toggleSetup()" style="background:none; border:none; font-size:0.82rem; color:var(--primary); cursor:pointer; font-weight:bold;">⚙️ 設定</button>
+    </div>
+
+    <!-- 設定モーダル（テーマ切替 ＋ GAS URL確認） -->
+    <div id="setupArea" class="setup-card" style="display:none;">
+      <div class="setup-title">🎨 テーマカラーの変更</div>
+      <div class="theme-selector">
+        <div class="theme-chip chip-blue" onclick="setTheme('blue')">ブルー</div>
+        <div class="theme-chip chip-emerald" onclick="setTheme('emerald')">グリーン</div>
+        <div class="theme-chip chip-orange" onclick="setTheme('orange')">オレンジ</div>
+        <div class="theme-chip chip-purple" onclick="setTheme('purple')">パープル</div>
+        <div class="theme-chip chip-dark" onclick="setTheme('dark')">ダーク</div>
+      </div>
+
+      <div class="setup-title" style="margin-top:12px;">🔗 GAS API URL</div>
+      <div class="setup-desc">URLの変更が必要な場合のみ編集してください。</div>
+      <input type="text" id="gasUrlInput" class="setup-input">
+      <button class="setup-btn" onclick="saveGasUrl()">保存して再読込</button>
     </div>
 
     <div class="week-nav" id="weekNav"></div>
@@ -258,15 +347,6 @@
   </header>
 
   <div id="content">
-    <!-- URL未設定時の入力フォーム -->
-    <div id="setupArea" class="setup-card" style="display:none;">
-      <div class="setup-title">🔗 GAS APIの接続設定</div>
-      <div class="setup-desc">先ほどテストしたGASのウェブアプリURLを貼り付けて「保存して接続」を押してください。</div>
-      <input type="text" id="gasUrlInput" class="setup-input" placeholder="https://script.google.com/macros/s/.../exec">
-      <button class="setup-btn" onclick="saveGasUrl()">保存して接続する</button>
-    </div>
-
-    <div id="debugBox" class="debug-box">初期化を開始します...</div>
     <div class="loading" id="loadingText">カレンダーから空き枠を取得中...</div>
   </div>
 
@@ -281,6 +361,7 @@
 
   <script>
     const STORAGE_URL_KEY = 'sukima_gas_url';
+    const THEME_KEY = 'sukima_theme_color';
     const CACHE_KEY = 'sukima_calendar_cache';
 
     let currentDuration = 60;
@@ -289,54 +370,62 @@
     let selectedSlots = new Set();
     let rawEvents = [];
 
-    function addLog(msg) {
-      console.log(msg);
-      const box = document.getElementById('debugBox');
-      if (box) {
-        box.innerHTML += '<br>▶ ' + msg;
+    // テーマ設定
+    function setTheme(name) {
+      document.body.className = '';
+      if (name !== 'blue') {
+        document.body.classList.add('theme-' + name);
       }
+      localStorage.setItem(THEME_KEY, name);
+
+      // チップのアクティブ表示更新
+      document.querySelectorAll('.theme-chip').forEach(c => {
+        c.classList.toggle('active', c.classList.contains('chip-' + name));
+      });
+
+      // アドレスバーのテーマカラー更新
+      const themeColors = {
+        blue: '#1a73e8', emerald: '#0f9d58', orange: '#ea580c', purple: '#7c3aed', dark: '#121212'
+      };
+      const meta = document.getElementById('metaThemeColor');
+      if (meta) meta.setAttribute('content', themeColors[name] || '#1a73e8');
     }
 
-    function toggleSetup(show) {
+    function toggleSetup() {
       const area = document.getElementById('setupArea');
-      if (area) {
-        area.style.display = show ? 'block' : 'none';
-        if (show) {
-          const currentUrl = localStorage.getItem(STORAGE_URL_KEY) || '';
-          document.getElementById('gasUrlInput').value = currentUrl;
-        }
+      const isHidden = area.style.display === 'none';
+      area.style.display = isHidden ? 'block' : 'none';
+      if (isHidden) {
+        document.getElementById('gasUrlInput').value = localStorage.getItem(STORAGE_URL_KEY) || '';
       }
     }
 
     function saveGasUrl() {
-      const input = document.getElementById('gasUrlInput');
-      const val = input.value.trim();
+      const val = document.getElementById('gasUrlInput').value.trim();
       if (!val || !val.startsWith('http')) {
         alert('正しいURLを入力してください');
         return;
       }
       localStorage.setItem(STORAGE_URL_KEY, val);
-      toggleSetup(false);
-      addLog('URL保存完了。通信を再開します');
+      document.getElementById('setupArea').style.display = 'none';
       fetchCalendarDataJSONP(val);
     }
 
-    // ★GASからのデータ受取口
     window.callback = function(data) {
-      addLog('✅ 受信成功！データ件数: ' + (Array.isArray(data) ? data.length + '件' : '形式不正'));
       if (Array.isArray(data)) {
         rawEvents = data;
         try {
           localStorage.setItem(CACHE_KEY, JSON.stringify(data));
         } catch (e) {}
       }
-      const debugBox = document.getElementById('debugBox');
-      if (debugBox) debugBox.style.display = 'none';
       renderCurrentView();
     };
 
     window.addEventListener('DOMContentLoaded', () => {
-      addLog('画面の読み込み完了');
+      // 保存済みテーマの適用
+      const savedTheme = localStorage.getItem(THEME_KEY) || 'blue';
+      setTheme(savedTheme);
+
       renderWeekNav();
 
       const cached = localStorage.getItem(CACHE_KEY);
@@ -345,28 +434,20 @@
           const parsed = JSON.parse(cached);
           if (Array.isArray(parsed) && parsed.length > 0) {
             rawEvents = parsed;
-            addLog('📦 キャッシュから ' + rawEvents.length + '件を描画');
             renderCurrentView();
           }
         } catch (e) {}
       }
 
       const savedUrl = localStorage.getItem(STORAGE_URL_KEY);
-      if (!savedUrl) {
-        addLog('⚠️ APIのURLが未設定です。上の入力枠にURLを貼り付けてください。');
-        toggleSetup(true);
-        const lt = document.getElementById('loadingText');
-        if (lt) lt.style.display = 'none';
-      } else {
+      if (savedUrl) {
         fetchCalendarDataJSONP(savedUrl);
+      } else {
+        toggleSetup();
       }
     });
 
     function fetchCalendarDataJSONP(targetUrl) {
-      addLog('📡 通信中: ' + targetUrl.substring(0, 40) + '...');
-      const lt = document.getElementById('loadingText');
-      if (lt) lt.style.display = 'block';
-
       const oldScript = document.getElementById('gas-jsonp-script');
       if (oldScript) oldScript.remove();
 
@@ -376,9 +457,6 @@
       const script = document.createElement('script');
       script.id = 'gas-jsonp-script';
       script.src = scriptUrl;
-      script.onerror = function() {
-        addLog('❌ 通信エラー: スクリプトの読み込みに失敗しました。');
-      };
       document.body.appendChild(script);
     }
 
@@ -561,43 +639,4 @@
     function updateActionBar() {
       const bar = document.getElementById('actionBar');
       const copyBtn = document.getElementById('copyAllBtn');
-      const count = selectedSlots.size;
-
-      if (count > 0) {
-        bar.classList.add('visible');
-        copyBtn.textContent = '📋 ' + count + '件の候補をまとめてコピー';
-      } else {
-        bar.classList.remove('visible');
-      }
-    }
-
-    function copyAllSelected() {
-      if (selectedSlots.size === 0) return;
-      const items = Array.from(selectedSlots);
-      const text = items.map(item => '・' + item).join('\n');
-      navigator.clipboard.writeText(text).then(() => {
-        showToast(items.length + '件の候補をコピーしました！');
-      });
-    }
-
-    function clearSelected() {
-      selectedSlots.clear();
-      updateActionBar();
-      renderCurrentView();
-    }
-
-    function formatTimeFromMs(ms) {
-      const d = new Date(ms);
-      if (d.getHours() === 0 && d.getMinutes() === 0) return '24:00';
-      return String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
-    }
-
-    function showToast(msg) {
-      const toast = document.getElementById('toast');
-      toast.textContent = msg;
-      toast.classList.add('show');
-      setTimeout(() => toast.classList.remove('show'), 2200);
-    }
-  </script>
-</body>
-</html>
+      const count = selectedSlots
