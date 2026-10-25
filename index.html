@@ -273,27 +273,29 @@
     let currentWeekOffset = 0;
     let selectedSlots = new Set();
     let rawEvents = [];
+    let isDataLoaded = false;
 
-    // ★GASの callback(...) を受け取る関数
+    // ★GASからのデータ受取口
     window.callback = function(data) {
-      if (!Array.isArray(data)) {
-        console.error("Data error:", data);
-        return;
+      isDataLoaded = true;
+      if (Array.isArray(data)) {
+        rawEvents = data;
+        localStorage.setItem(CACHE_KEY, JSON.stringify(data));
       }
-      rawEvents = data;
-      localStorage.setItem(CACHE_KEY, JSON.stringify(data));
       renderCurrentView();
     };
 
     window.addEventListener('DOMContentLoaded', () => {
       renderWeekNav();
 
-      // キャッシュがあれば即座に0秒描画
+      // キャッシュがあれば即描画
       const cached = localStorage.getItem(CACHE_KEY);
       if (cached) {
         try {
-          rawEvents = JSON.parse(cached);
-          if (Array.isArray(rawEvents) && rawEvents.length > 0) {
+          const parsed = JSON.parse(cached);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            rawEvents = parsed;
+            isDataLoaded = true;
             renderCurrentView();
           }
         } catch (e) {
@@ -305,10 +307,6 @@
     });
 
     function fetchCalendarDataJSONP() {
-      if (rawEvents.length === 0) {
-        document.getElementById('content').innerHTML = '<div class="loading">Googleカレンダーから空き枠を取得中...</div>';
-      }
-
       const oldScript = document.getElementById('gas-jsonp-script');
       if (oldScript) oldScript.remove();
 
@@ -318,6 +316,15 @@
       const script = document.createElement('script');
       script.id = 'gas-jsonp-script';
       script.src = scriptUrl;
+      script.onerror = function() {
+        if (!isDataLoaded) {
+          document.getElementById('content').innerHTML = `
+            <div class="loading" style="color:#d93025;">
+              通信に失敗しました。URLまたは接続環境を確認してください。
+            </div>
+          `;
+        }
+      };
       document.body.appendChild(script);
     }
 
@@ -372,7 +379,7 @@
     }
 
     function renderCurrentView() {
-      if (!rawEvents || rawEvents.length === 0) return;
+      if (!isDataLoaded && rawEvents.length === 0) return;
       if (currentView === 'list') {
         renderListView();
       } else {
@@ -408,6 +415,7 @@
       return metas;
     }
 
+    /* 1. リスト表示（確実にローディングを上書き） */
     function renderListView() {
       const container = document.getElementById('content');
       const days = getWeekDaysMeta();
@@ -419,7 +427,8 @@
         let buttons = '';
         let pointer = day.start7Ms;
 
-        if (nowMs > pointer) {
+        // 本日の過去時間のみスキップ
+        if (day.isToday && nowMs > pointer) {
           pointer = Math.ceil(nowMs / (30 * 60 * 1000)) * (30 * 60 * 1000);
         }
 
@@ -458,9 +467,10 @@
         }
       });
 
-      container.innerHTML = html || `<div class="loading">この週に条件を満たす空き枠はありません</div>`;
+      container.innerHTML = html || `<div class="loading">この週（${days[0].dateLabel}〜）には条件に合う空き枠がありません</div>`;
     }
 
+    /* 2. 週間カレンダー表示 */
     function renderCalendarView() {
       const container = document.getElementById('content');
       const days = getWeekDaysMeta();
