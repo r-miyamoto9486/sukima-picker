@@ -262,11 +262,11 @@
   </div>
 
   <div id="toast" class="toast">コピーしました！</div>
+<script>
+    // ★ご自身のGASデプロイURLをそのまま入れてください
+    const GAS_API_URL = 'https://script.google.com/macros/s/AKfycbx.../exec';
 
-  <script>
-    // ★ここにステップ1で取得したGASのデプロイURLを貼り付ける
-    const GAS_API_URL = https://script.google.com/macros/s/AKfycbxEX0_VhSekeiip7CCfrA-RW26oV1heU14eMCOmqNKpoLNxjaoMACZZ5xZxXVNrXc-s/exec;
-
+    const CACHE_KEY = 'sukima_calendar_cache';
     let currentDuration = 60;
     let currentView = 'list';
     let currentWeekOffset = 0;
@@ -275,20 +275,42 @@
 
     window.addEventListener('DOMContentLoaded', () => {
       renderWeekNav();
+
+      // 1. キャッシュがあれば即座に0秒描画（爆速化のキモ）
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        try {
+          rawEvents = JSON.parse(cached);
+          renderCurrentView();
+        } catch (e) {
+          console.error("Cache read error:", e);
+        }
+      }
+
+      // 2. 裏側で最新カレンダーデータをバックグラウンド取得して更新
       fetchCalendarData();
     });
 
-    // GASから予定データをfetchで高速取得
     function fetchCalendarData() {
+      // キャッシュが全くない初回のみローディング表示
+      if (rawEvents.length === 0) {
+        document.getElementById('content').innerHTML = '<div class="loading">Googleカレンダーから空き枠を取得中...</div>';
+      }
+
       fetch(GAS_API_URL)
         .then(res => res.json())
         .then(data => {
           rawEvents = data;
+          // スマホ内にデータを保存
+          localStorage.setItem(CACHE_KEY, JSON.stringify(data));
+          // 最新データで再描画
           renderCurrentView();
         })
         .catch(err => {
           console.error(err);
-          document.getElementById('content').innerHTML = '<div class="loading">予定の取得に失敗しました。URLを確認してください。</div>';
+          if (rawEvents.length === 0) {
+            document.getElementById('content').innerHTML = '<div class="loading">予定の取得に失敗しました</div>';
+          }
         });
     }
 
@@ -343,7 +365,7 @@
     }
 
     function renderCurrentView() {
-      if (rawEvents.length === 0 && !document.querySelector('.day-card')) return;
+      if (!rawEvents || rawEvents.length === 0) return;
       if (currentView === 'list') {
         renderListView();
       } else {
